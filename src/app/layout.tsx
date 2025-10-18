@@ -1,7 +1,6 @@
 import { SidebarProvider, SidebarTrigger, SidebarInset } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
 import { ThemeProvider } from "@/components/theme-provider"
-import { Card, CardHeader } from "@/components/ui/card"
 import "@/app/globals.css"
 import { ModeToggle } from "@/components/theme-toggler";
 
