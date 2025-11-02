@@ -1,12 +1,12 @@
 "use client"
 
-import { Calendar, Heading1, Home, Inbox, Search, Settings } from "lucide-react"
+import { Home, LayoutDashboard } from "lucide-react"
+import Link from "next/link"
 import {
   Sidebar,
   SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -14,29 +14,35 @@ import {
   useSidebar,
   SidebarFooter
 } from "@/components/ui/sidebar"
+import { useData } from "@/contexts/data-context"
 
 import "@/app/globals.css"
 
-const items = [
+const baseItems = [
   {
     title: "Home",
-    url: "#",
+    url: "/",
     icon: Home,
-  },
-  {
-    title: "Contact Us",
-    url: "#",
-    icon: Inbox,
   }
 ]
- 
+
+const dashboardItem = {
+  title: "Dashboard",
+  url: "/dashboard",
+  icon: LayoutDashboard,
+}
+
 export function AppSidebar() {
   const sidebar_state = useSidebar();
+  const { hasData } = useData();
+
+  const items = hasData ? [...baseItems, dashboardItem] : baseItems;
+  
   return (
     <Sidebar variant="inset">
       {sidebar_state.state == "expanded" && <div className="px-2 py-4">
         <SidebarHeader>
-          <p className="text-2xl">DataGlass</p>
+          <p className="text-3xl bold">D a t a G l a s s</p>
         </SidebarHeader>
       </div>}
       <SidebarContent>
@@ -46,10 +52,10 @@ export function AppSidebar() {
               {items.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
-                    <a href={item.url}>
+                    <Link href={item.url}>
                       <item.icon />
                       <span>{item.title}</span>
-                    </a>
+                    </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
