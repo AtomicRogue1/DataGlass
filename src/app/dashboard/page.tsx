@@ -5,7 +5,6 @@ import { useData } from "@/contexts/data-context";
 import { useRouter } from "next/navigation";
 import BarChartCard from "@/components/bar-chart-card";
 import LineChartCard from "@/components/line-chart-card";
-import PieChartCard from "@/components/pie-chart-card";
 import StatsCard from "@/components/statsCard";
 import PaginatedDataTable from "@/components/paginated-data-table";
 import "@/app/globals.css";
@@ -88,30 +87,41 @@ export default function Dashboard() {
 
   type APIResponse = {
     success: boolean;
-    answer?: string;
+    recommendations?: Array<{
+      chartType: string;
+      columnX: string;
+      columnY: string;
+    }>;
     error?: string;
   };
 
-  const sendToAPI = useCallback(async (metadata: Metadata): Promise<APIResponse | null> => {
-    const prompt = `
-      Below is data about my columns: whether they are numeric or not, mean, median, mode, and standard deviation.
+  type ChartRec = {
+    chartType: string;
+    columnX: string;
+    columnY: string;
+  };
 
-      ${JSON.stringify(metadata, null, 2)}
+  // Build isNumericCol dictionary from metadata
+  const isNumericCol = useMemo(() => {
+    const result: Record<string, boolean> = {};
+    Object.entries(metadata).forEach(([col, meta]) => {
+      result[col] = meta.isNumeric;
+    });
+    return result;
+  }, [metadata]);
 
-      Tell me for each column what kind of graph is best. 
-      Here are options you have to choose from: 
-      Bar Graph, Line Chart, Bubble Chart, Scatter Chart, Pie Chart, Area Chart. 
-
-      Answer in JSON only.
-    `;
-  
+  const sendToAPI = useCallback(async (): Promise<APIResponse | null> => {
     try {
-      const response = await fetch("/api/analyze", {
+      // Go through Next.js rewrite proxy to reach FastAPI (see next.config.ts)
+      const response = await fetch("/api/python/api/analyze", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({ prompt })
+        body: JSON.stringify({ 
+          data: csvData,
+          isNumericCol: isNumericCol
+        })
       });
   
       const result = await response.json();
@@ -121,38 +131,26 @@ export default function Dashboard() {
       console.error("Error sending data: ", err);
       return null;
     }
-  }, []);
+  }, [csvData, isNumericCol]);
 
   // Auto-generate charts when arriving on Dashboard if not already generated
   useEffect(() => {
     const generate = async () => {
-      if (Object.keys(chartRecommendations).length > 0) return;
+      if (Array.isArray(chartRecommendations) && chartRecommendations.length > 0) return;
       if (!csvData || csvData.length === 0) return;
       if (!metadata || Object.keys(metadata).length === 0) return;
       setIsGenerating(true);
       try {
-        const result = await sendToAPI(metadata);
-        if(result?.success && result?.answer) {
-          try {
-            let jsonString = result.answer.trim();
-            const codeBlockMatch = jsonString.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
-            if (codeBlockMatch) {
-              jsonString = codeBlockMatch[1].trim();
-            }
-            jsonString = jsonString.trim();
-            const parsedAnswer = JSON.parse(jsonString);
-            setChartRecommendations(parsedAnswer);
-            setErrorMsg(null);
-          } catch (e) {
-            console.error("Failed to parse answer as JSON:", e);
-            console.error("Raw answer was:", result?.answer);
-            setErrorMsg("We couldn't understand the AI's response. Try again later.");
-          }
+        const result = await sendToAPI();
+        if(result?.success && result?.recommendations) {
+          // Store recommendations directly
+          setChartRecommendations(result.recommendations as ChartRec[]);
+          setErrorMsg(null);
         } else if (result?.error) {
           console.error("API Error:", result.error);
           setErrorMsg(result.error || "Internal server error");
         } else if (!result) {
-          setErrorMsg("Network error while contacting AI service.");
+          setErrorMsg("Network error while contacting Python backend.");
         }
       } finally {
         setIsGenerating(false);
@@ -161,24 +159,32 @@ export default function Dashboard() {
     generate();
   }, [chartRecommendations, csvData, metadata, sendToAPI, setChartRecommendations]);
 
-  const renderChart = (columnName: string, chartType: string) => {
-    switch(chartType) {
-      case "Bar Graph":
-        return <BarChartCard key={columnName} data={csvData} columnName={columnName} />;
-      case "Line Chart":
-        return <LineChartCard key={columnName} data={csvData} columnName={columnName} />;
-      case "Pie Chart":
-        return <PieChartCard key={columnName} data={csvData} columnName={columnName} />;
-      case "Area Chart":
-        return <LineChartCard key={columnName} data={csvData} columnName={columnName} />;
-      case "Scatter Chart":
-        return <BarChartCard key={columnName} data={csvData} columnName={columnName} />;
-      case "Bubble Chart":
-        return <BarChartCard key={columnName} data={csvData} columnName={columnName} />;
+  const renderChart = (recommendation: ChartRec, index: number) => {
+    const { chartType, columnX, columnY } = recommendation;
+    const key = `${chartType}-${columnX}-${columnY}-${index}`;
+    
+    switch(chartType.toLowerCase()) {
+      case "barchart":
+      case "bar chart":
+        return <BarChartCard key={key} data={csvData} columnName={columnX} />;
+      case "scatter":
+      case "scatter chart":
+        return <BarChartCard key={key} data={csvData} columnName={columnX} />;
+      case "timebarchart":
+      case "time bar chart":
+        return <LineChartCard key={key} data={csvData} columnName={columnY} />;
+      case "stackedbarchart":
+      case "stacked bar chart":
+        return <BarChartCard key={key} data={csvData} columnName={columnX} />;
       default:
-        return <BarChartCard key={columnName} data={csvData} columnName={columnName} />;
+        return <BarChartCard key={key} data={csvData} columnName={columnX} />;
     }
   };
+
+  // Check if chartRecommendations is an array (new format) or object (old format)
+  const recommendations: ChartRec[] = Array.isArray(chartRecommendations) 
+    ? (chartRecommendations as ChartRec[]) 
+    : [];
 
   return (
     <div className={`m-15 transition-opacity duration-500 ${isFadingOut ? "opacity-0 pointer-events-none" : isFadingIn ? "opacity-100" : "opacity-0"}`}>
@@ -190,11 +196,11 @@ export default function Dashboard() {
 
       {/* Charts */}
       <div className="mt-8">
-        {Object.keys(chartRecommendations).length > 0 ? (
+        {recommendations.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {Object.entries(chartRecommendations).map(([columnName, chartType]) => (
-              <div key={columnName}>
-                {renderChart(columnName, chartType)}
+            {recommendations.map((rec: ChartRec, index: number) => (
+              <div key={index}>
+                {renderChart(rec, index)}
               </div>
             ))}
           </div>
