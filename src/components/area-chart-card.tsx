@@ -9,6 +9,7 @@ import {
     Title,
     Tooltip,
     Legend,
+    Filler,
 } from 'chart.js';
 import {
     Card,
@@ -26,28 +27,19 @@ ChartJS.register(
     LineElement,
     Title,
     Tooltip,
-    Legend
+    Legend,
+    Filler
 );
 
-interface LineChartCardProps {
+interface AreaChartCardProps {
     data: any[];
     xAxisKey: string;
     yAxisKey: string;
     title: string;
 }
 
-function LineChartCard({ data, xAxisKey, yAxisKey, title }: LineChartCardProps) {
-    // Helper function to check if a string looks like a date
-    const isDateLike = (str: string): boolean => {
-        const datePatterns = [
-            /^\d{4}-\d{2}-\d{2}/, // YYYY-MM-DD
-            /^\d{2}[-/]\d{2}[-/]\d{4}/, // MM-DD-YYYY or MM/DD/YYYY
-            /^\d{4}[-/]\d{2}[-/]\d{2}/, // YYYY-MM-DD or YYYY/MM/DD
-        ];
-        return datePatterns.some(pattern => pattern.test(str)) || !isNaN(Date.parse(str));
-    };
-
-    // Process data for line chart
+function AreaChartCard({ data, xAxisKey, yAxisKey, title }: AreaChartCardProps) {
+    // Process data for area chart
     const processedData = () => {
         if (xAxisKey === 'index') {
             return data.map((item, index) => ({
@@ -55,26 +47,10 @@ function LineChartCard({ data, xAxisKey, yAxisKey, title }: LineChartCardProps) 
                 y: parseFloat(item[yAxisKey]) || 0
             }));
         } else {
-            const processedItems = data.map(item => ({
+            return data.map(item => ({
                 x: item[xAxisKey],
-                y: parseFloat(item[yAxisKey]) || 0,
-                originalX: item[xAxisKey]
+                y: parseFloat(item[yAxisKey]) || 0
             }));
-
-            // If x-axis looks like dates, sort by date and format labels
-            if (processedItems.length > 0 && isDateLike(String(processedItems[0].originalX))) {
-                return processedItems
-                    .sort((a, b) => new Date(a.originalX).getTime() - new Date(b.originalX).getTime())
-                    .map(item => ({
-                        x: new Date(item.originalX).toLocaleDateString('en-US', { 
-                            month: 'short', 
-                            day: 'numeric' 
-                        }),
-                        y: item.y
-                    }));
-            }
-
-            return processedItems.map(item => ({ x: item.x, y: item.y }));
         }
     };
 
@@ -87,14 +63,14 @@ function LineChartCard({ data, xAxisKey, yAxisKey, title }: LineChartCardProps) 
         datasets: [{
             label: yAxisKey,
             data: values,
-            borderColor: 'rgb(59, 130, 246)',
-            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+            borderColor: 'rgba(139, 92, 246, 1)',
+            backgroundColor: 'rgba(139, 92, 246, 0.3)',
             borderWidth: 2,
-            fill: false,
-            tension: 0.1,
-            pointBackgroundColor: 'rgb(59, 130, 246)',
-            pointBorderColor: 'rgb(59, 130, 246)',
-            pointRadius: 4,
+            fill: true,
+            tension: 0.3,
+            pointBackgroundColor: 'rgba(139, 92, 246, 1)',
+            pointBorderColor: 'rgba(139, 92, 246, 1)',
+            pointRadius: 3,
         }]
     };
 
@@ -114,14 +90,6 @@ function LineChartCard({ data, xAxisKey, yAxisKey, title }: LineChartCardProps) 
                 title: {
                     display: true,
                     text: xAxisKey
-                },
-                ticks: {
-                    maxRotation: 45,
-                    minRotation: 0,
-                    maxTicksLimit: 8,
-                    font: {
-                        size: 10
-                    }
                 }
             },
             y: {
@@ -138,10 +106,10 @@ function LineChartCard({ data, xAxisKey, yAxisKey, title }: LineChartCardProps) 
         <Card>
             <CardHeader>
                 <CardTitle>{title}</CardTitle>
-                <CardDescription>Line Chart</CardDescription>
+                <CardDescription>Area Chart</CardDescription>
             </CardHeader>
             <CardContent className="p-6">
-                <div style={{ height: '400px' }}>
+                <div style={{ height: '300px' }}>
                     <Line data={chartConfig} options={options} />
                 </div>
             </CardContent>
@@ -149,4 +117,4 @@ function LineChartCard({ data, xAxisKey, yAxisKey, title }: LineChartCardProps) 
     )
 }
 
-export default LineChartCard
+export default AreaChartCard

@@ -2,19 +2,13 @@
 
 import React, { createContext, useContext, useState } from 'react';
 
-export type ChartRecommendation = {
-  chartType: string;
-  columnX: string;
-  columnY: string;
-};
-
 type DataContextType = {
   hasData: boolean;
   setHasData: (value: boolean) => void;
   csvData: Record<string, string>[];
   setCsvData: (data: Record<string, string>[]) => void;
-  chartRecommendations: ChartRecommendation[];
-  setChartRecommendations: (recommendations: ChartRecommendation[]) => void;
+  chartRecommendations: Record<string, string>;
+  setChartRecommendations: (recommendations: Record<string, string>) => void;
 };
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -22,7 +16,7 @@ const DataContext = createContext<DataContextType | undefined>(undefined);
 export function DataProvider({ children }: { children: React.ReactNode }) {
   const [hasData, setHasData] = useState(false);
   const [csvData, setCsvData] = useState<Record<string, string>[]>([]);
-  const [chartRecommendations, setChartRecommendations] = useState<ChartRecommendation[]>([]);
+  const [chartRecommendations, setChartRecommendations] = useState<Record<string, string>>({});
 
   return (
     <DataContext.Provider value={{ 

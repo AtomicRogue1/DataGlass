@@ -5,12 +5,18 @@ import { useData } from "@/contexts/data-context";
 import { useRouter } from "next/navigation";
 import BarChartCard from "@/components/bar-chart-card";
 import LineChartCard from "@/components/line-chart-card";
+import PieChartCard from "@/components/pie-chart-card";
+import AreaChartCard from "@/components/area-chart-card";
+import ScatterChartCard from "@/components/scatter-chart-card";
+import BubbleChartCard from "@/components/bubble-chart-card";
 import StatsCard from "@/components/statsCard";
 import PaginatedDataTable from "@/components/paginated-data-table";
+import { ApiService } from "@/services/api";
 import "@/app/globals.css";
 
 export default function Dashboard() {
-  const { hasData, csvData, chartRecommendations, setChartRecommendations } = useData();
+  const { hasData, csvData } = useData();
+  const [chartRecommendations, setChartRecommendations] = useState<ChartRec[]>([]);
   const router = useRouter();
   const [page, setPage] = useState(0);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -112,31 +118,41 @@ export default function Dashboard() {
 
   const sendToAPI = useCallback(async (): Promise<APIResponse | null> => {
     try {
-      // Go through Next.js rewrite proxy to reach FastAPI (see next.config.ts)
-      const response = await fetch("/api/python/api/analyze", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ 
-          data: csvData,
-          isNumericCol: isNumericCol
-        })
-      });
-  
-      const result = await response.json();
-      return result;
+      // Call your FastAPI backend through the proxy
+      const result = await ApiService.getChartRecommendations(csvData, isNumericCol);
+      
+      if (result.success && result.recommendations) {
+        // Convert FastAPI format to your expected format
+        const formattedRecommendations = (result.recommendations as Array<{ type: string; xAxis?: string; yAxis?: string; dataKey?: string }>).map(rec => ({
+          chartType: rec.type,
+          columnX: rec.xAxis || rec.dataKey || '',
+          columnY: rec.yAxis || 'count'
+        }));
+        
+        return {
+          success: true,
+          recommendations: formattedRecommendations
+        };
+      } else {
+        return {
+          success: false,
+          error: result.error || 'Failed to get chart recommendations'
+        };
+      }
     } 
     catch (err) {
       console.error("Error sending data: ", err);
-      return null;
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : 'Network error'
+      };
     }
   }, [csvData, isNumericCol]);
 
   // Auto-generate charts when arriving on Dashboard if not already generated
   useEffect(() => {
     const generate = async () => {
-      if (Array.isArray(chartRecommendations) && chartRecommendations.length > 0) return;
+      if (chartRecommendations.length > 0) return;
       if (!csvData || csvData.length === 0) return;
       if (!metadata || Object.keys(metadata).length === 0) return;
       setIsGenerating(true);
@@ -144,7 +160,7 @@ export default function Dashboard() {
         const result = await sendToAPI();
         if(result?.success && result?.recommendations) {
           // Store recommendations directly
-          setChartRecommendations(result.recommendations as ChartRec[]);
+          setChartRecommendations(result.recommendations);
           setErrorMsg(null);
         } else if (result?.error) {
           console.error("API Error:", result.error);
@@ -157,34 +173,162 @@ export default function Dashboard() {
       }
     };
     generate();
-  }, [chartRecommendations, csvData, metadata, sendToAPI, setChartRecommendations]);
+  }, [chartRecommendations, csvData, metadata, sendToAPI]);
 
   const renderChart = (recommendation: ChartRec, index: number) => {
     const { chartType, columnX, columnY } = recommendation;
     const key = `${chartType}-${columnX}-${columnY}-${index}`;
     
+    // Create a proper title from the recommendation
+    const getTitle = () => {
+      switch(chartType.toLowerCase()) {
+        case "bar":
+          return `Distribution of ${columnY} over ${columnX}`;
+        case "line":
+          return `Trend of ${columnY} according to ${columnX}`;
+        case "scatter":
+          return `${columnX} vs ${columnY}`;
+        case "pie":
+          return `Composition of ${columnX}`;
+        case "area":
+          return `Area Chart of ${columnY}`;
+        case "bubble":
+          return `Bubble Chart: ${columnX} vs ${columnY}`;
+        default:
+          return `${chartType} Chart`;
+      }
+    };
+    
     switch(chartType.toLowerCase()) {
+      case "bar":
+        return (
+          <BarChartCard 
+            key={key} 
+            data={csvData} 
+            xAxisKey={columnX} 
+            yAxisKey={columnY} 
+            title={getTitle()} 
+          />
+        );
+      
+      case "line":
+        return (
+          <LineChartCard 
+            key={key} 
+            data={csvData} 
+            xAxisKey={columnX} 
+            yAxisKey={columnY} 
+            title={getTitle()} 
+          />
+        );
+      
+      case "scatter":
+        return (
+          <ScatterChartCard 
+            key={key} 
+            data={csvData} 
+            xAxisKey={columnX} 
+            yAxisKey={columnY} 
+            title={getTitle()} 
+          />
+        );
+      
+      case "pie":
+        return (
+          <PieChartCard 
+            key={key} 
+            data={csvData} 
+            dataKey={columnX} 
+            title={getTitle()} 
+          />
+        );
+      
+      case "area":
+        return (
+          <AreaChartCard 
+            key={key} 
+            data={csvData} 
+            xAxisKey={columnX} 
+            yAxisKey={columnY} 
+            title={getTitle()} 
+          />
+        );
+      
+      case "bubble":
+        return (
+          <BubbleChartCard 
+            key={key} 
+            data={csvData} 
+            xAxisKey={columnX} 
+            yAxisKey={columnY} 
+            title={getTitle()} 
+          />
+        );
+      
+      // Legacy support for older chart types
       case "barchart":
       case "bar chart":
-        return <BarChartCard key={key} data={csvData} columnName={columnX} />;
-      case "scatter":
-      case "scatter chart":
-        return <BarChartCard key={key} data={csvData} columnName={columnX} />;
+        return (
+          <BarChartCard 
+            key={key} 
+            data={csvData} 
+            xAxisKey={columnX} 
+            yAxisKey={columnY} 
+            title={`Bar Chart - ${columnX}`} 
+          />
+        );
+      
       case "timebarchart":
       case "time bar chart":
-        return <LineChartCard key={key} data={csvData} columnName={columnY} />;
+        return (
+          <LineChartCard 
+            key={key} 
+            data={csvData} 
+            xAxisKey={columnX} 
+            yAxisKey={columnY} 
+            title={`Time Series - ${columnY}`} 
+          />
+        );
+      
       case "stackedbarchart":
       case "stacked bar chart":
-        return <BarChartCard key={key} data={csvData} columnName={columnX} />;
+        return (
+          <BarChartCard 
+            key={key} 
+            data={csvData} 
+            xAxisKey={columnX} 
+            yAxisKey={columnY} 
+            title={`Stacked Bar - ${columnX}`} 
+          />
+        );
+      
+      case "scatter chart":
+        return (
+          <ScatterChartCard 
+            key={key} 
+            data={csvData} 
+            xAxisKey={columnX} 
+            yAxisKey={columnY} 
+            title={`Scatter Plot - ${columnX} vs ${columnY}`} 
+          />
+        );
+      
       default:
-        return <BarChartCard key={key} data={csvData} columnName={columnX} />;
+        // Fallback to bar chart for unknown types
+        return (
+          <BarChartCard 
+            key={key} 
+            data={csvData} 
+            xAxisKey={columnX} 
+            yAxisKey={columnY || 'count'} 
+            title={`${chartType} Chart - ${columnX}`} 
+          />
+        );
     }
   };
 
-  // Check if chartRecommendations is an array (new format) or object (old format)
-  const recommendations: ChartRec[] = Array.isArray(chartRecommendations) 
-    ? (chartRecommendations as ChartRec[]) 
-    : [];
+  // Use chartRecommendations directly since it's now an array
+  const recommendations: ChartRec[] = chartRecommendations;
 
   return (
     <div className={`m-15 transition-opacity duration-500 ${isFadingOut ? "opacity-0 pointer-events-none" : isFadingIn ? "opacity-100" : "opacity-0"}`}>
@@ -197,12 +341,18 @@ export default function Dashboard() {
       {/* Charts */}
       <div className="mt-8">
         {recommendations.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {recommendations.map((rec: ChartRec, index: number) => (
-              <div key={index}>
-                {renderChart(rec, index)}
-              </div>
-            ))}
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            {recommendations.map((rec: ChartRec, index: number) => {
+              // Line and scatter charts take full width, others share space
+              const isWideChart = rec.chartType.toLowerCase() === 'line' || rec.chartType.toLowerCase() === 'scatter';
+              const gridSpanClass = isWideChart ? 'col-span-1 xl:col-span-2' : 'col-span-1';
+              
+              return (
+                <div key={index} className={gridSpanClass}>
+                  {renderChart(rec, index)}
+                </div>
+              );
+            })}
           </div>
         ) : (
           <div className="text-center py-8 text-sm text-gray-400">

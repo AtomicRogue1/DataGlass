@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import React from 'react'
 import {
     Chart as ChartJS, 
@@ -26,29 +27,101 @@ ChartJS.register(
     Legend
 );
 
-function BarChartCard({ data, columnName }: { 
-    data: Record<string, string>[];
-    columnName: string;
-}) {
-    // Extract column data
-    const columnValues = data.map(row => row[columnName]);
-    
-    // Create frequency map for the data
-    const frequency: Record<string, number> = {};
-    columnValues.forEach(value => {
-        if (value !== undefined && value !== null && value !== '') {
-            frequency[value] = (frequency[value] || 0) + 1;
+interface BarChartCardProps {
+    data: any[];
+    xAxisKey: string;
+    yAxisKey: string;
+    title: string;
+}
+
+function BarChartCard({ data, xAxisKey, yAxisKey, title }: BarChartCardProps) {
+    // Process data based on yAxisKey
+    const processedData = () => {
+        if (yAxisKey === 'count') {
+            // Count occurrences of each value in xAxisKey
+            const frequency: Record<string, number> = {};
+            data.forEach(row => {
+                let value = String(row[xAxisKey] || 'Unknown');
+                
+                // Check if this looks like a date and format it
+                if (isDateLike(value)) {
+                    value = formatDate(value);
+                }
+                
+                frequency[value] = (frequency[value] || 0) + 1;
+            });
+            
+            // If we have too many categories, group them or take top N
+            const entries = Object.entries(frequency);
+            if (entries.length > 20) {
+                // Sort by frequency and take top 15
+                const sortedEntries = entries.sort((a, b) => b[1] - a[1]).slice(0, 15);
+                const result: Record<string, number> = {};
+                sortedEntries.forEach(([key, val]) => {
+                    result[key] = val;
+                });
+                return result;
+            }
+            
+            return frequency;
+        } else {
+            // Use actual values
+            const result: Record<string, number> = {};
+            data.forEach(row => {
+                let xValue = String(row[xAxisKey] || 'Unknown');
+                
+                // Check if this looks like a date and format it
+                if (isDateLike(xValue)) {
+                    xValue = formatDate(xValue);
+                }
+                
+                const yValue = parseFloat(row[yAxisKey]) || 0;
+                result[xValue] = yValue;
+            });
+            return result;
         }
-    });
+    };
     
+    // Helper function to check if a string looks like a date
+    const isDateLike = (str: string): boolean => {
+        // Check for common date patterns
+        const datePatterns = [
+            /^\d{4}-\d{2}-\d{2}/, // YYYY-MM-DD
+            /^\d{2}[-/]\d{2}[-/]\d{4}/, // MM-DD-YYYY or MM/DD/YYYY
+            /^\d{4}[-/]\d{2}[-/]\d{2}/, // YYYY-MM-DD or YYYY/MM/DD
+            /^\d{2}[-/]\d{2}[-/]\d{2}/, // MM-DD-YY or MM/DD/YY
+        ];
+        
+        return datePatterns.some(pattern => pattern.test(str)) || !isNaN(Date.parse(str));
+    };
+    
+    // Helper function to format dates nicely
+    const formatDate = (dateStr: string): string => {
+        try {
+            const date = new Date(dateStr);
+            if (!isNaN(date.getTime())) {
+                // Format as MMM DD or MMM YYYY depending on data density
+                return date.toLocaleDateString('en-US', { 
+                    month: 'short', 
+                    day: 'numeric',
+                    year: '2-digit'
+                });
+            }
+        } catch {
+            // If date parsing fails, return original string
+        }
+        return dateStr;
+    };
+
+    const frequency = processedData();
     const labels = Object.keys(frequency);
     const values = Object.values(frequency);
     
-    // Generate random bright colors for each bar (avoiding dark colors)
+    // Generate random bright colors for each bar
     const backgroundColors = labels.map(() => {
-        const r = Math.floor(Math.random() * 156) + 100; // 100-255
-        const g = Math.floor(Math.random() * 156) + 100; // 100-255
-        const b = Math.floor(Math.random() * 156) + 100; // 100-255
+        const r = Math.floor(Math.random() * 156) + 100;
+        const g = Math.floor(Math.random() * 156) + 100;
+        const b = Math.floor(Math.random() * 156) + 100;
         return `rgba(${r}, ${g}, ${b}, 0.6)`;
     });
     
@@ -59,7 +132,7 @@ function BarChartCard({ data, columnName }: {
     const chartData = {
         labels,
         datasets: [{
-            label: columnName,
+            label: yAxisKey,
             data: values,
             backgroundColor: backgroundColors,
             borderColor: borderColors,
@@ -69,17 +142,26 @@ function BarChartCard({ data, columnName }: {
 
     const options = {
         responsive: true,
-        maintainAspectRatio: true,
+        maintainAspectRatio: false,
         plugins: {
             legend: {
                 position: 'bottom' as const
             },
             title: {
-                display: true,
-                text: `${columnName} Distribution`
+                display: false
             }
         },
         scales: {
+            x: {
+                ticks: {
+                    maxRotation: 45,
+                    minRotation: 45,
+                    maxTicksLimit: 10,
+                    font: {
+                        size: 10
+                    }
+                }
+            },
             y: {
                 beginAtZero: true,
                 ticks: {
@@ -92,11 +174,13 @@ function BarChartCard({ data, columnName }: {
     return (
         <Card>
             <CardHeader>
-                <CardTitle>{columnName}</CardTitle>
+                <CardTitle>{title}</CardTitle>
                 <CardDescription>Bar Chart</CardDescription>
             </CardHeader>
-            <CardContent>
-                <Bar data={chartData} options={options} />
+            <CardContent className="p-6">
+                <div style={{ height: '300px' }}>
+                    <Bar data={chartData} options={options} />
+                </div>
             </CardContent>
         </Card>
     )
