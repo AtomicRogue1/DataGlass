@@ -7,6 +7,13 @@ import uvicorn
 import re
 from datetime import datetime
 import random
+import os
+from dotenv import load_dotenv
+from openai import OpenAI
+import json
+
+# Load environment variables
+load_dotenv()
 
 app = FastAPI(title="DataGlass API", version="1.0.0")
 
@@ -45,6 +52,9 @@ DATETIME_THRESHOLD = 0.7
 MAX_PIE_CATEGORIES = 8
 MIN_PIE_CATEGORIES = 2
 MAX_BUBBLE_CATEGORIES = 10
+
+# Initialize OpenAI client
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # ==================== HELPER FUNCTIONS ====================
 
@@ -117,6 +127,10 @@ class ChartResponse(BaseModel):
     recommendations: Optional[List[Dict[str, Any]]] = None
     error: Optional[str] = None
 
+class AIChartRequest(BaseModel):
+    prompt: str
+    headers: List[str]
+
 # ==================== ENDPOINTS ====================
 
 @app.get("/")
@@ -129,6 +143,7 @@ async def root():
         "endpoints": [
             "/stats",
             "/chart-recommendations",
+            "/chart-recommendations-ai",
             "/docs"
         ]
     }
@@ -380,6 +395,112 @@ async def get_chart_recommendations(request: DataRequest) -> ChartResponse:
         
     except Exception as e:
         return ChartResponse(success=False, error=str(e))
+    
+@app.post("/chart-recommendations-ai")
+async def get_ai_chart_recommendations(request: AIChartRequest) -> ChartResponse:
+    """Get AI-powered chart recommendations using OpenAI."""
+    try:
+        if not os.getenv("OPENAI_API_KEY"):
+            return ChartResponse(success=False, error="OpenAI API key not configured")
+        
+        # Prepare the system prompt
+        system_prompt = """
+        You are a data visualization expert. Based on the user's request and CSV column headers, recommend the most appropriate chart types.
+
+        Return your response as a JSON array of chart recommendations. Each recommendation should have this exact structure:
+        {
+            "type": "bar|line|pie|scatter|area|bubble",
+            "title": "Chart title",
+            "xAxis": "column_name_for_x_axis (only use CSV column headers)",
+            "yAxis": "column_name_for_y_axis (only use CSV column headers)", 
+            "dataKey": "column_name (only use CSV column headers) (only for pie charts)",
+            "description": "Brief explanation of what this chart shows"
+        }
+
+        Guidelines:
+        - For pie charts, use "dataKey" instead of xAxis/yAxis
+        - For bar/line/area/scatter charts, always specify both xAxis and yAxis
+        - Choose columns that exist in the provided headers
+        - Recommend 1-3 different chart types maximum
+        - Consider the user's specific request and data context
+        - Make titles descriptive and professional
+        """
+        
+        # Prepare the user prompt with context
+        headers_text = ", ".join(request.headers)
+        
+        user_prompt = f"""
+        User Request: {request.prompt}
+
+        Available CSV columns: {headers_text}
+
+        Please recommend appropriate chart visualizations based on this request and the available data columns.
+        """
+        
+        # Call OpenAI API
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=0.7,
+            max_tokens=1000
+        )
+        
+        # Parse the response
+        ai_response = response.choices[0].message.content.strip()
+        
+        # Try to extract JSON from the response
+        try:
+            # Look for JSON array in the response
+            start_idx = ai_response.find('[')
+            end_idx = ai_response.rfind(']') + 1
+            
+            if start_idx != -1 and end_idx != -1:
+                json_str = ai_response[start_idx:end_idx]
+                recommendations = json.loads(json_str)
+            else:
+                # Fallback: try parsing the entire response as JSON
+                recommendations = json.loads(ai_response)
+                
+        except json.JSONDecodeError as e:
+            return ChartResponse(
+                success=False, 
+                error=f"Failed to parse AI response as JSON: {str(e)}. Response: {ai_response[:200]}..."
+            )
+        
+        # Validate recommendations format
+        if not isinstance(recommendations, list):
+            return ChartResponse(success=False, error="AI response is not a list of recommendations")
+        
+        # Validate each recommendation has required fields
+        validated_recommendations = []
+        for rec in recommendations:
+            if not isinstance(rec, dict):
+                continue
+                
+            if "type" not in rec or "title" not in rec:
+                continue
+                
+            # Ensure proper structure based on chart type
+            if rec["type"] == "pie":
+                if "dataKey" not in rec:
+                    continue
+            else:
+                if "xAxis" not in rec:
+                    continue
+                # yAxis is optional for some chart types
+                
+            validated_recommendations.append(rec)
+        
+        if not validated_recommendations:
+            return ChartResponse(success=False, error="No valid chart recommendations generated by AI")
+        
+        return ChartResponse(success=True, recommendations=validated_recommendations[:6])  # Limit to 6
+        
+    except Exception as e:
+        return ChartResponse(success=False, error=f"AI recommendation error: {str(e)}")
 
 if __name__ == "__main__":
     uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=True)

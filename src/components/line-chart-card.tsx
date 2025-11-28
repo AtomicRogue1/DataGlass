@@ -16,7 +16,12 @@ import {
     CardDescription,
     CardHeader,
     CardTitle,
+    CardAction
 } from "@/components/ui/card"
+import {
+    Button
+} from "@/components/ui/button"
+import { Trash2 } from 'lucide-react';
 import { Line } from 'react-chartjs-2';
 
 ChartJS.register(
@@ -34,9 +39,11 @@ interface LineChartCardProps {
     xAxisKey: string;
     yAxisKey: string;
     title: string;
+    chartKey: string;
+    onDelete: (chartKey: string) => void;
 }
 
-function LineChartCard({ data, xAxisKey, yAxisKey, title }: LineChartCardProps) {
+function LineChartCard({ data, xAxisKey, yAxisKey, title, chartKey, onDelete }: LineChartCardProps) {
     // Helper function to check if a string looks like a date
     const isDateLike = (str: string): boolean => {
         const datePatterns = [
@@ -134,11 +141,23 @@ function LineChartCard({ data, xAxisKey, yAxisKey, title }: LineChartCardProps) 
         }
     };
 
+    const handleDelete = () => {
+        if(onDelete)
+        {
+            onDelete(chartKey);
+        }
+    };
+
     return (
         <Card>
             <CardHeader>
                 <CardTitle>{title}</CardTitle>
                 <CardDescription>Line Chart</CardDescription>
+                <CardAction>
+                    <Button variant={'ghost'} onClick={handleDelete}>
+                        <Trash2 className="h-[1.2rem] w-[1.2rem]"/>
+                    </Button>
+                </CardAction>
             </CardHeader>
             <CardContent className="p-6">
                 <div style={{ height: '400px' }}>

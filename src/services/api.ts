@@ -1,4 +1,4 @@
-const API_BASE_URL = '/api/python';
+const API_BASE_URL = "/api/python";
 
 export interface StatsRequest {
   data: unknown[];
@@ -23,16 +23,16 @@ export interface ChartRecommendationsResponse {
 }
 
 export class ApiService {
-  
-  /**
-   * Get statistics for each column
-   */
-  static async getStats(data: unknown[], isNumeric: { [key: string]: boolean }): Promise<StatsResponse> {
+  /* Get statistics for each column */
+  static async getStats(
+    data: unknown[],
+    isNumeric: { [key: string]: boolean }
+  ): Promise<StatsResponse> {
     try {
       const response = await fetch(`${API_BASE_URL}/stats`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({ data, isNumeric }),
       });
@@ -42,11 +42,11 @@ export class ApiService {
       }
 
       return await response.json();
-      
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Stats calculation failed'
+        error:
+          error instanceof Error ? error.message : "Stats calculation failed",
       };
     }
   }
@@ -54,12 +54,15 @@ export class ApiService {
   /**
    * Get chart recommendations
    */
-  static async getChartRecommendations(data: unknown[], isNumeric: { [key: string]: boolean }): Promise<ChartRecommendationsResponse> {
+  static async getChartRecommendations(
+    data: unknown[],
+    isNumeric: { [key: string]: boolean }
+  ): Promise<ChartRecommendationsResponse> {
     try {
       const response = await fetch(`${API_BASE_URL}/chart-recommendations`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({ data, isNumeric }),
       });
@@ -69,11 +72,45 @@ export class ApiService {
       }
 
       return await response.json();
-      
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Chart recommendations failed'
+        error:
+          error instanceof Error
+            ? error.message
+            : "Chart recommendations failed",
+      };
+    }
+  }
+
+  /**
+   * Get AI-powered chart recommendations using OpenAI
+   */
+  static async getChartRecommendationsAI(
+    prompt: string,
+    headers: string[]
+  ): Promise<ChartRecommendationsResponse> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/chart-recommendations-ai`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ prompt, headers }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      return {
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "AI chart recommendations failed",
       };
     }
   }

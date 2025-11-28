@@ -12,7 +12,12 @@ import {
     CardDescription,
     CardHeader,
     CardTitle,
+    CardAction
 } from "@/components/ui/card"
+import {
+    Button
+} from "@/components/ui/button"
+import { Trash2 } from 'lucide-react';
 import { Pie } from 'react-chartjs-2';
 
 ChartJS.register(ArcElement, Tooltip, Legend);
@@ -21,9 +26,11 @@ interface PieChartCardProps {
     data: any[];
     dataKey: string;
     title: string;
+    chartKey: string;
+    onDelete: (chartKey: string) => void;
 }
 
-function PieChartCard({ data, dataKey, title }: PieChartCardProps) {
+function PieChartCard({ data, dataKey, title, chartKey, onDelete   }: PieChartCardProps) {
     // Count occurrences of each value
     const frequency: Record<string, number> = {};
     data.forEach(row => {
@@ -70,7 +77,7 @@ function PieChartCard({ data, dataKey, title }: PieChartCardProps) {
             },
             tooltip: {
                 callbacks: {
-                    label: function(context: any) {
+                    label: function (context: any) {
                         const label = context.label || '';
                         const value = context.raw;
                         const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
@@ -81,12 +88,24 @@ function PieChartCard({ data, dataKey, title }: PieChartCardProps) {
             }
         }
     };
+    
+    const handleDelete = () => {
+        if(onDelete)
+        {
+            onDelete(chartKey);
+        }
+    };
 
     return (
         <Card>
             <CardHeader>
                 <CardTitle>{title}</CardTitle>
                 <CardDescription>Pie Chart</CardDescription>
+                <CardAction>
+                    <Button variant={'ghost'} onClick={handleDelete}>
+                        <Trash2 className="h-[1.2rem] w-[1.2rem]" />
+                    </Button>
+                </CardAction>
             </CardHeader>
             <CardContent className="p-6">
                 <div style={{ height: '300px' }}>

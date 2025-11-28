@@ -17,7 +17,12 @@ import {
     CardDescription,
     CardHeader,
     CardTitle,
+    CardAction
 } from "@/components/ui/card"
+import {
+    Button
+} from "@/components/ui/button"
+import { Trash2 } from 'lucide-react';
 import { Line } from 'react-chartjs-2';
 
 ChartJS.register(
@@ -36,9 +41,11 @@ interface AreaChartCardProps {
     xAxisKey: string;
     yAxisKey: string;
     title: string;
+    chartKey: string;
+    onDelete: (chartKey: string) => void;
 }
 
-function AreaChartCard({ data, xAxisKey, yAxisKey, title }: AreaChartCardProps) {
+function AreaChartCard({ data, xAxisKey, yAxisKey, title, chartKey, onDelete  }: AreaChartCardProps) {
     // Process data for area chart
     const processedData = () => {
         if (xAxisKey === 'index') {
@@ -102,11 +109,23 @@ function AreaChartCard({ data, xAxisKey, yAxisKey, title }: AreaChartCardProps) 
         }
     };
 
+    const handleDelete = () => {
+        if(onDelete)
+        {
+            onDelete(chartKey);
+        }
+    };
+
     return (
         <Card>
             <CardHeader>
                 <CardTitle>{title}</CardTitle>
                 <CardDescription>Area Chart</CardDescription>
+                <CardAction>
+                    <Button variant={'ghost'} onClick={handleDelete}>
+                        <Trash2 className="h-[1.2rem] w-[1.2rem]" />
+                    </Button>
+                </CardAction>
             </CardHeader>
             <CardContent className="p-6">
                 <div style={{ height: '300px' }}>

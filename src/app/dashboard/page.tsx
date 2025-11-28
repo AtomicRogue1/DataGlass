@@ -12,17 +12,117 @@ import BubbleChartCard from "@/components/bubble-chart-card";
 import StatsCard from "@/components/statsCard";
 import PaginatedDataTable from "@/components/paginated-data-table";
 import { ApiService } from "@/services/api";
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Sparkles } from 'lucide-react';
 import "@/app/globals.css";
 
+type Metadata = Record<
+  string,
+  {
+    isNumeric: boolean;
+    mean?: number;
+    median?: number;
+    mode?: string | number;
+    standardDeviation?: number;
+  }
+>;
+
+type APIResponse = {
+  success: boolean;
+  recommendations?: Array<{
+    type: string;
+    title: string;
+    xAxis?: string;
+    yAxis?: string;
+    dataKey?: string;
+    description?: string;
+  }>;
+  error?: string;
+};
+
+type ChartRec = {
+  type: string;
+  title: string;
+  xAxis?: string;
+  yAxis?: string;
+  dataKey?: string;
+  description?: string;
+};
+
 export default function Dashboard() {
-  const { hasData, csvData } = useData();
+  const { hasData, csvData, initialDataProcessingDone, setInitialDataProcessingDone } = useData();
   const [chartRecommendations, setChartRecommendations] = useState<ChartRec[]>([]);
+  const [chartIndex, setChartIndex] = useState<string[]>([]);
   const router = useRouter();
   const [page, setPage] = useState(0);
   const [isGenerating, setIsGenerating] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isFadingIn, setIsFadingIn] = useState(false);
   const [isFadingOut, setIsFadingOut] = useState(false);
+
+  function CornerPopup() {
+    const [cornerPopupActive, setCornerPopupActive] = useState(false)
+
+    return (
+      <div className='fixed bottom-[0em] right-[0em] p-5 rounded-tl-[0.625rem] bg-muted border-white-200 border-1'>
+        <Sparkles className="h-5 w-5 text-foreground" />
+      </div>
+    )
+  }
+
+  function AIPrompt() {
+    const [inputValue, setInputValue] = useState("");
+
+    const handleSubmit = async () => {
+      if (inputValue.trim()) {
+        try {
+          const headers = Object.keys(csvData[0] || {});
+          const result = await ApiService.getChartRecommendationsAI(inputValue.trim(), headers);
+
+          if (result.success && result.recommendations) {
+            // Keep backend format - don't transform
+            setChartRecommendations(prev => [...prev, ...(result.recommendations as ChartRec[])]);
+            console.log(result.recommendations);
+          }
+          setInputValue("");
+        }
+        catch (error) {
+          console.error('AI API Error:', error);
+        }
+      }
+    }
+
+    return (
+      <div className='flex gap-4'>
+        <Input
+          type="text"
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              handleSubmit();
+            }
+          }}
+          placeholder='Chat with AI for more focussed data visualizations.'
+        />
+        <Button onClick={handleSubmit} variant={'outline'}>
+          <Sparkles className="h-[1.2rem] w-[1.2rem] text-black dark:text-white" />
+        </Button>
+      </div>
+    )
+  }
+
+  const handleDeleteChartItem = (chartToDelete: string) => {
+    // Find which index this key corresponds to
+    const indexToRemove = chartIndex.indexOf(chartToDelete);
+
+    if (indexToRemove !== -1) {
+      // Remove from both arrays at the same index
+      setChartIndex(prev => prev.filter((_, index) => index !== indexToRemove));
+      setChartRecommendations(prev => prev.filter((_, index) => index !== indexToRemove));
+    }
+  };
 
   useEffect(() => {
     if (!hasData) {
@@ -37,31 +137,19 @@ export default function Dashboard() {
     }
   }, [hasData, router]);
 
-
-  type Metadata = Record<
-    string,
-    {
-      isNumeric: boolean;
-      mean?: number;
-      median?: number;
-      mode?: string | number;
-      standardDeviation?: number;
-    }
-  >;
-
   const metadata: Metadata = useMemo(() => {
     const data = csvData;
     if (!data || data.length === 0) return {} as Metadata;
-  
+
     const columns = Object.keys(data[0]);
     const md: Metadata = {} as Metadata;
-  
+
     columns.forEach((col) => {
       const values = data.map((row) => row[col]).filter((v) => v !== undefined && v !== null);
-  
+
       const numericValues = values.map((v) => Number(v)).filter((v) => !isNaN(v));
       const isNumeric = numericValues.length === values.length;
-  
+
       const freq: Record<string, number> = {};
       values.forEach((val) => {
         const key = val.toString();
@@ -70,9 +158,9 @@ export default function Dashboard() {
       const maxFreq = Math.max(...Object.values(freq));
       const modeArray = Object.keys(freq).filter((key) => freq[key] === maxFreq);
       const mode = modeArray[0];
-  
+
       const colMeta: Metadata[string] = { isNumeric, mode };
-  
+
       if (isNumeric) {
         const mean = numericValues.reduce((a, b) => a + b, 0) / numericValues.length;
         const sorted = [...numericValues].sort((a, b) => a - b);
@@ -84,28 +172,12 @@ export default function Dashboard() {
         colMeta.median = median;
         colMeta.standardDeviation = standardDeviation;
       }
-  
+
       md[col] = colMeta;
     });
-  
+
     return md;
   }, [csvData]);
-
-  type APIResponse = {
-    success: boolean;
-    recommendations?: Array<{
-      chartType: string;
-      columnX: string;
-      columnY: string;
-    }>;
-    error?: string;
-  };
-
-  type ChartRec = {
-    chartType: string;
-    columnX: string;
-    columnY: string;
-  };
 
   // Build isNumericCol dictionary from metadata
   const isNumericCol = useMemo(() => {
@@ -120,18 +192,12 @@ export default function Dashboard() {
     try {
       // Call your FastAPI backend through the proxy
       const result = await ApiService.getChartRecommendations(csvData, isNumericCol);
-      
+
       if (result.success && result.recommendations) {
-        // Convert FastAPI format to your expected format
-        const formattedRecommendations = (result.recommendations as Array<{ type: string; xAxis?: string; yAxis?: string; dataKey?: string }>).map(rec => ({
-          chartType: rec.type,
-          columnX: rec.xAxis || rec.dataKey || '',
-          columnY: rec.yAxis || 'count'
-        }));
-        
+        // Keep backend format - don't transform
         return {
           success: true,
-          recommendations: formattedRecommendations
+          recommendations: result.recommendations as ChartRec[]
         };
       } else {
         return {
@@ -139,7 +205,7 @@ export default function Dashboard() {
           error: result.error || 'Failed to get chart recommendations'
         };
       }
-    } 
+    }
     catch (err) {
       console.error("Error sending data: ", err);
       return {
@@ -152,13 +218,14 @@ export default function Dashboard() {
   // Auto-generate charts when arriving on Dashboard if not already generated
   useEffect(() => {
     const generate = async () => {
+      if (initialDataProcessingDone) return;
       if (chartRecommendations.length > 0) return;
       if (!csvData || csvData.length === 0) return;
       if (!metadata || Object.keys(metadata).length === 0) return;
       setIsGenerating(true);
       try {
         const result = await sendToAPI();
-        if(result?.success && result?.recommendations) {
+        if (result?.success && result?.recommendations) {
           // Store recommendations directly
           setChartRecommendations(result.recommendations);
           setErrorMsg(null);
@@ -170,158 +237,163 @@ export default function Dashboard() {
         }
       } finally {
         setIsGenerating(false);
+        setInitialDataProcessingDone(true);
       }
     };
     generate();
-  }, [chartRecommendations, csvData, metadata, sendToAPI]);
+  }, [chartRecommendations, csvData, metadata, sendToAPI, initialDataProcessingDone, setInitialDataProcessingDone]);
+
+  useEffect(() => {
+    if (chartRecommendations.length > 0) {
+      const keys = chartRecommendations.map((rec, index) =>
+        `${rec.type}-${rec.xAxis || rec.dataKey || ''}-${rec.yAxis || 'count'}-${index}`
+      );
+      setChartIndex(keys);
+    }
+  }, [chartRecommendations]);
 
   const renderChart = (recommendation: ChartRec, index: number) => {
-    const { chartType, columnX, columnY } = recommendation;
-    const key = `${chartType}-${columnX}-${columnY}-${index}`;
-    
-    // Create a proper title from the recommendation
+    const { type: chartType, title, xAxis: columnX, yAxis: columnY, dataKey } = recommendation;
+    const key = `${chartType}-${columnX || dataKey || ''}-${columnY || 'count'}-${index}`;
+
+    // Ensure we have valid column names
+    const xKey = columnX || dataKey || '';
+    const yKey = columnY || 'count';
+    const pieKey = dataKey || columnX || '';
+
+    // Use title directly from backend recommendation
     const getTitle = () => {
-      switch(chartType.toLowerCase()) {
-        case "bar":
-          return `Distribution of ${columnY} over ${columnX}`;
-        case "line":
-          return `Trend of ${columnY} according to ${columnX}`;
-        case "scatter":
-          return `${columnX} vs ${columnY}`;
-        case "pie":
-          return `Composition of ${columnX}`;
-        case "area":
-          return `Area Chart of ${columnY}`;
-        case "bubble":
-          return `Bubble Chart: ${columnX} vs ${columnY}`;
-        default:
-          return `${chartType} Chart`;
-      }
+      return title || `${chartType} Chart`; // Fallback if title is missing
     };
-    
-    switch(chartType.toLowerCase()) {
+
+    switch (chartType.toLowerCase()) {
       case "bar":
         return (
-          <BarChartCard 
-            key={key} 
-            data={csvData} 
-            xAxisKey={columnX} 
-            yAxisKey={columnY} 
-            title={getTitle()} 
+          <BarChartCard
+            key={key}
+            data={csvData}
+            xAxisKey={xKey}
+            yAxisKey={yKey}
+            title={getTitle()}
+            chartKey={key}
+            onDelete={handleDeleteChartItem}
           />
         );
-      
+
       case "line":
         return (
-          <LineChartCard 
-            key={key} 
-            data={csvData} 
-            xAxisKey={columnX} 
-            yAxisKey={columnY} 
-            title={getTitle()} 
+          <LineChartCard
+            key={key}
+            data={csvData}
+            xAxisKey={xKey}
+            yAxisKey={yKey}
+            title={getTitle()}
+            chartKey={key}
+            onDelete={handleDeleteChartItem}
           />
         );
-      
+
       case "scatter":
         return (
-          <ScatterChartCard 
-            key={key} 
-            data={csvData} 
-            xAxisKey={columnX} 
-            yAxisKey={columnY} 
-            title={getTitle()} 
+          <ScatterChartCard
+            key={key}
+            data={csvData}
+            xAxisKey={xKey}
+            yAxisKey={yKey}
+            title={getTitle()}
+            chartKey={key}
+            onDelete={handleDeleteChartItem}
           />
         );
-      
+
       case "pie":
         return (
-          <PieChartCard 
-            key={key} 
-            data={csvData} 
-            dataKey={columnX} 
-            title={getTitle()} 
+          <PieChartCard
+            key={key}
+            data={csvData}
+            dataKey={pieKey}
+            title={getTitle()}
+            chartKey={key}
+            onDelete={handleDeleteChartItem}
           />
         );
-      
+
       case "area":
         return (
-          <AreaChartCard 
-            key={key} 
-            data={csvData} 
-            xAxisKey={columnX} 
-            yAxisKey={columnY} 
-            title={getTitle()} 
+          <AreaChartCard
+            key={key}
+            data={csvData}
+            xAxisKey={xKey}
+            yAxisKey={yKey}
+            title={getTitle()}
+            chartKey={key}
+            onDelete={handleDeleteChartItem}
           />
         );
-      
+
       case "bubble":
         return (
-          <BubbleChartCard 
-            key={key} 
-            data={csvData} 
-            xAxisKey={columnX} 
-            yAxisKey={columnY} 
-            title={getTitle()} 
+          <BubbleChartCard
+            key={key}
+            data={csvData}
+            xAxisKey={xKey}
+            yAxisKey={yKey}
+            title={getTitle()}
+            chartKey={key}
+            onDelete={handleDeleteChartItem}
           />
         );
-      
-      // Legacy support for older chart types
-      case "barchart":
-      case "bar chart":
-        return (
-          <BarChartCard 
-            key={key} 
-            data={csvData} 
-            xAxisKey={columnX} 
-            yAxisKey={columnY} 
-            title={`Bar Chart - ${columnX}`} 
-          />
-        );
-      
-      case "timebarchart":
       case "time bar chart":
         return (
-          <LineChartCard 
-            key={key} 
-            data={csvData} 
-            xAxisKey={columnX} 
-            yAxisKey={columnY} 
-            title={`Time Series - ${columnY}`} 
+          <LineChartCard
+            key={key}
+            data={csvData}
+            xAxisKey={xKey}
+            yAxisKey={yKey}
+            title={getTitle()}
+            chartKey={key}
+            onDelete={handleDeleteChartItem}
           />
         );
-      
+
       case "stackedbarchart":
       case "stacked bar chart":
         return (
-          <BarChartCard 
-            key={key} 
-            data={csvData} 
-            xAxisKey={columnX} 
-            yAxisKey={columnY} 
-            title={`Stacked Bar - ${columnX}`} 
+          <BarChartCard
+            key={key}
+            data={csvData}
+            xAxisKey={xKey}
+            yAxisKey={yKey}
+            title={getTitle()}
+            chartKey={key}
+            onDelete={handleDeleteChartItem}
           />
         );
-      
+
       case "scatter chart":
         return (
-          <ScatterChartCard 
-            key={key} 
-            data={csvData} 
-            xAxisKey={columnX} 
-            yAxisKey={columnY} 
-            title={`Scatter Plot - ${columnX} vs ${columnY}`} 
+          <ScatterChartCard
+            key={key}
+            data={csvData}
+            xAxisKey={xKey}
+            yAxisKey={yKey}
+            title={getTitle()}
+            chartKey={key}
+            onDelete={handleDeleteChartItem}
           />
         );
-      
+
       default:
         // Fallback to bar chart for unknown types
         return (
-          <BarChartCard 
-            key={key} 
-            data={csvData} 
-            xAxisKey={columnX} 
-            yAxisKey={columnY || 'count'} 
-            title={`${chartType} Chart - ${columnX}`} 
+          <BarChartCard
+            key={key}
+            data={csvData}
+            xAxisKey={xKey}
+            yAxisKey={yKey}
+            title={getTitle()}
+            chartKey={key}
+            onDelete={handleDeleteChartItem}
           />
         );
     }
@@ -331,7 +403,9 @@ export default function Dashboard() {
   const recommendations: ChartRec[] = chartRecommendations;
 
   return (
-    <div className={`m-15 transition-opacity duration-500 ${isFadingOut ? "opacity-0 pointer-events-none" : isFadingIn ? "opacity-100" : "opacity-0"}`}>
+    <div className={`m-15 rounded-none transition-opacity duration-500 ${isFadingOut ? "opacity-0 pointer-events-none" : isFadingIn ? "opacity-100" : "opacity-0"}`}>
+      <CornerPopup />
+      <AIPrompt />
       {/* Data preview and stats */}
       <div className="flex flex-row">
         <PaginatedDataTable data={csvData} page={page} setPage={setPage} />
@@ -344,9 +418,9 @@ export default function Dashboard() {
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
             {recommendations.map((rec: ChartRec, index: number) => {
               // Line and scatter charts take full width, others share space
-              const isWideChart = rec.chartType.toLowerCase() === 'line' || rec.chartType.toLowerCase() === 'scatter';
+              const isWideChart = rec.type.toLowerCase() === 'line' || rec.type.toLowerCase() === 'scatter';
               const gridSpanClass = isWideChart ? 'col-span-1 xl:col-span-2' : 'col-span-1';
-              
+
               return (
                 <div key={index} className={gridSpanClass}>
                   {renderChart(rec, index)}

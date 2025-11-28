@@ -13,7 +13,12 @@ import {
     CardDescription,
     CardHeader,
     CardTitle,
+    CardAction
 } from "@/components/ui/card"
+import {
+    Button
+} from "@/components/ui/button"
+import { Trash2 } from 'lucide-react';
 import { Bubble } from 'react-chartjs-2';
 
 ChartJS.register(LinearScale, PointElement, Tooltip, Legend);
@@ -24,9 +29,11 @@ interface BubbleChartCardProps {
     yAxisKey: string;
     title: string;
     sizeKey?: string;
+    chartKey: string;
+    onDelete: (chartKey: string) => void;
 }
 
-function BubbleChartCard({ data, xAxisKey, yAxisKey, title, sizeKey }: BubbleChartCardProps) {
+function BubbleChartCard({ data, xAxisKey, yAxisKey, title, sizeKey, chartKey, onDelete   }: BubbleChartCardProps) {
     // Process data for bubble chart
     const processedData = data
         .map((item, index) => ({
@@ -35,7 +42,7 @@ function BubbleChartCard({ data, xAxisKey, yAxisKey, title, sizeKey }: BubbleCha
             r: sizeKey ? Math.max(5, parseFloat(item[sizeKey]) / 10) : 10 + (index % 15)
         }))
         .filter(item => !isNaN(item.x) && !isNaN(item.y));
-
+    
     const chartConfig = {
         datasets: [{
             label: sizeKey ? `${xAxisKey} vs ${yAxisKey} (size: ${sizeKey})` : `${xAxisKey} vs ${yAxisKey}`,
@@ -75,11 +82,23 @@ function BubbleChartCard({ data, xAxisKey, yAxisKey, title, sizeKey }: BubbleCha
         }
     };
 
+    const handleDelete = () => {
+        if(onDelete)
+        {
+            onDelete(chartKey);
+        }
+    };
+
     return (
         <Card>
             <CardHeader>
                 <CardTitle>{title}</CardTitle>
                 <CardDescription>Bubble Chart</CardDescription>
+                <CardAction>
+                    <Button variant={'ghost'} onClick={handleDelete}>
+                        <Trash2 className="h-[1.2rem] w-[1.2rem]" />
+                    </Button>
+                </CardAction>
             </CardHeader>
             <CardContent className="p-6">
                 <div style={{ height: '400px' }}>

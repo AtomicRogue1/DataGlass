@@ -14,7 +14,12 @@ import {
     CardDescription,
     CardHeader,
     CardTitle,
+    CardAction
 } from "@/components/ui/card"
+import {
+    Button
+} from "@/components/ui/button"
+import { Trash2 } from 'lucide-react';
 import { Scatter } from 'react-chartjs-2';
 
 ChartJS.register(LinearScale, PointElement, LineElement, Tooltip, Legend);
@@ -24,9 +29,11 @@ interface ScatterChartCardProps {
     xAxisKey: string;
     yAxisKey: string;
     title: string;
+    chartKey: string;
+    onDelete: (chartKey: string) => void;
 }
 
-function ScatterChartCard({ data, xAxisKey, yAxisKey, title }: ScatterChartCardProps) {
+function ScatterChartCard({ data, xAxisKey, yAxisKey, title, chartKey, onDelete   }: ScatterChartCardProps) {
     // Process data for scatter chart
     const processedData = data
         .map(item => ({
@@ -75,11 +82,23 @@ function ScatterChartCard({ data, xAxisKey, yAxisKey, title }: ScatterChartCardP
         }
     };
 
+    const handleDelete = () => {
+        if(onDelete)
+        {
+            onDelete(chartKey);
+        }
+    };
+
     return (
         <Card>
             <CardHeader>
                 <CardTitle>{title}</CardTitle>
                 <CardDescription>Scatter Chart</CardDescription>
+                <CardAction>
+                    <Button variant={'ghost'} onClick={handleDelete}>
+                        <Trash2 className="h-[1.2rem] w-[1.2rem]" />
+                    </Button>
+                </CardAction>
             </CardHeader>
             <CardContent className="p-6">
                 <div style={{ height: '300px' }}>

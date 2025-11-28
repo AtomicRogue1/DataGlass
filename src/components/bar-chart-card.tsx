@@ -15,7 +15,12 @@ import {
     CardDescription,
     CardHeader,
     CardTitle,
+    CardAction
 } from "@/components/ui/card"
+import {
+    Button
+} from "@/components/ui/button"
+import { Trash2 } from 'lucide-react';
 import { Bar } from 'react-chartjs-2';
 
 ChartJS.register(
@@ -32,12 +37,14 @@ interface BarChartCardProps {
     xAxisKey: string;
     yAxisKey: string;
     title: string;
+    chartKey: string;
+    onDelete: (chartKey: string) => void;
 }
 
-function BarChartCard({ data, xAxisKey, yAxisKey, title }: BarChartCardProps) {
+function BarChartCard({ data, xAxisKey, yAxisKey, title, chartKey, onDelete }: BarChartCardProps) {
     // Process data based on yAxisKey
     const processedData = () => {
-        if (yAxisKey === 'count') {
+        if (yAxisKey.toLowerCase().includes('count')) {
             // Count occurrences of each value in xAxisKey
             const frequency: Record<string, number> = {};
             data.forEach(row => {
@@ -170,12 +177,24 @@ function BarChartCard({ data, xAxisKey, yAxisKey, title }: BarChartCardProps) {
             }
         }
     };
+
+    const handleDelete = () => {
+        if(onDelete)
+        {
+            onDelete(chartKey);
+        }
+    };
     
     return (
         <Card>
             <CardHeader>
                 <CardTitle>{title}</CardTitle>
                 <CardDescription>Bar Chart</CardDescription>
+                <CardAction>
+                    <Button variant={'ghost'} onClick={handleDelete}>
+                        <Trash2 className="h-[1.2rem] w-[1.2rem]"/>
+                    </Button>
+                </CardAction>
             </CardHeader>
             <CardContent className="p-6">
                 <div style={{ height: '300px' }}>
