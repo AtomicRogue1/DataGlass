@@ -1,4 +1,4 @@
-const API_BASE_URL = "https://dataglass-backend.onrender.com";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://dataglass-backend.onrender.com";
 
 export interface StatsRequest {
   data: unknown[];
