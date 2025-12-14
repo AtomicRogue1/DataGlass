@@ -1,4 +1,4 @@
-const API_BASE_URL = "/api/python";
+const API_BASE_URL = "https://dataglass-backend.onrender.com/";
 
 export interface StatsRequest {
   data: unknown[];
