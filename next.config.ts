@@ -6,7 +6,7 @@ const nextConfig: NextConfig = {
       // Proxy Python FastAPI during development to avoid CORS and 404 confusion
       {
         source: "/api/python/:path*",
-        destination: "http://localhost:8000/:path*",
+        destination: "https://dataglass-backend.onrender.com/:path*",
       },
     ];
   },
