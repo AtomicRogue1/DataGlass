@@ -14,7 +14,8 @@ import PaginatedDataTable from "@/components/paginated-data-table";
 import { ApiService } from "@/services/api";
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, X, Loader2 } from 'lucide-react';
+import { motion, AnimatePresence } from "framer-motion";
 import "@/app/globals.css";
 
 type Metadata = Record<
@@ -57,25 +58,34 @@ export default function Dashboard() {
   const router = useRouter();
   const [page, setPage] = useState(0);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isFadingIn, setIsFadingIn] = useState(false);
   const [isFadingOut, setIsFadingOut] = useState(false);
 
+  // Auto-scroll to bottom when new chart recommendations are added
+  useEffect(() => {
+    const scrollToBottom = () => {
+      window.scrollTo({
+        top: document.documentElement.scrollHeight,
+        behavior: 'smooth'
+      });
+    };
+    
+    // Only scroll if charts were added (not on initial load)
+    if (chartRecommendations.length > 0) {
+      // Small delay to ensure DOM is updated
+      setTimeout(scrollToBottom, 100);
+    }
+  }, [chartRecommendations]);
+
   function CornerPopup() {
-    const [cornerPopupActive, setCornerPopupActive] = useState(false)
-
-    return (
-      <div className='fixed bottom-[0em] right-[0em] p-5 rounded-tl-[0.625rem] bg-muted border-white-200 border-1'>
-        <Sparkles className="h-5 w-5 text-foreground" />
-      </div>
-    )
-  }
-
-  function AIPrompt() {
+    const [cornerPopupActive, setCornerPopupActive] = useState(true);
     const [inputValue, setInputValue] = useState("");
 
     const handleSubmit = async () => {
       if (inputValue.trim()) {
+        setIsGeneratingAI(true);
         try {
           const headers = Object.keys(csvData[0] || {});
           const result = await ApiService.getChartRecommendationsAI(inputValue.trim(), headers);
@@ -89,27 +99,60 @@ export default function Dashboard() {
         }
         catch (error) {
           console.error('AI API Error:', error);
+        } finally {
+          setIsGeneratingAI(false);
         }
       }
     }
 
     return (
-      <div className='flex gap-4'>
-        <Input
-          type="text"
-          value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              handleSubmit();
-            }
-          }}
-          placeholder='Chat with AI for more focussed data visualizations.'
-        />
-        <Button onClick={handleSubmit} variant={'outline'}>
-          <Sparkles className="h-[1.2rem] w-[1.2rem] text-black dark:text-white" />
-        </Button>
-      </div>
+      <motion.div layout className='fixed bottom-[0em] right-[0em] p-0 rounded-tl-[0.625rem] bg-white dark:bg-muted border-white-200 border-1'>
+        <AnimatePresence mode='popLayout'>
+          {cornerPopupActive ?
+            (
+              <motion.div
+                key="compact"
+                initial={{ opacity: 0, scaleX: 0 }}
+                animate={{ opacity: 1, scaleX: 1 }}
+                exit={{ opacity: 0, scaleX: 0 }}
+                transition={{ duration: 0.3 }}
+              >
+                <Button className='h-14 w-14' variant={'ghost'} onClick={() => setCornerPopupActive(!cornerPopupActive)}>
+                  {isGenerating ? <Loader2 className="h-15 w-15 text-foreground animate-spin" /> : <Sparkles className="h-15 w-15 text-foreground" />}
+                </Button>
+              </motion.div>
+            )
+            :
+            (
+              <motion.div
+                key="expanded"
+                initial={{ opacity: 0, scale: 0 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0 }}
+                transition={{ duration: 0.2 }}
+                className='flex gap-4 px-[1em] py-[1em]'
+              >
+                <Input
+                  className='w-[30em]'
+                  type="text"
+                  value={inputValue}
+                  onChange={(e) => setInputValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      handleSubmit();
+                    }
+                  }}
+                  placeholder='Chat with AI for more focussed data visualizations.'
+                />
+                <Button onClick={(e) => { e.stopPropagation(); handleSubmit(); }} variant={'outline'} disabled={isGeneratingAI}>
+                  {isGeneratingAI ? <Loader2 className="h-[1.2rem] w-[1.2rem] text-black dark:text-white animate-spin" />
+                    : <Sparkles className="h-[1.2rem] w-[1.2rem] text-black dark:text-white" />}
+                </Button>
+                <Button onClick={(e) => { e.stopPropagation(); setCornerPopupActive(!cornerPopupActive); }} variant={'outline'}><X className='h-[1.2rem] w-[1.2rem] text-black dark:text-white' /></Button>
+              </motion.div>
+            )}
+        </AnimatePresence>
+      </motion.div>
     )
   }
 
@@ -405,7 +448,6 @@ export default function Dashboard() {
   return (
     <div className={`m-15 rounded-none transition-opacity duration-500 ${isFadingOut ? "opacity-0 pointer-events-none" : isFadingIn ? "opacity-100" : "opacity-0"}`}>
       <CornerPopup />
-      <AIPrompt />
       {/* Data preview and stats */}
       <div className="flex flex-row">
         <PaginatedDataTable data={csvData} page={page} setPage={setPage} />

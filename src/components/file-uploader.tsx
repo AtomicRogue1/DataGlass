@@ -79,7 +79,7 @@ export default function FileUploader() {
   }, [router, setCsvData, setHasData, setInitialDataProcessingDone]);
 
   return (
-    <div className={`m-15 transition-opacity duration-500 ${isFading ? "opacity-0 pointer-events-none select-none" : isFadingIn ? "opacity-100" : "opacity-0"}`}>
+    <div className={`w-[80%] m-15 transition-opacity duration-500 ${isFading ? "opacity-0 pointer-events-none select-none" : isFadingIn ? "opacity-100" : "opacity-0"}`}>
       <FileUploaderDropdown onDataParsed={handleDataParsed} />
     </div>
   );

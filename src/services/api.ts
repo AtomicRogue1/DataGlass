@@ -102,7 +102,7 @@ export class ApiService {
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-
+      
       return await response.json();
     } catch (error) {
       return {
