@@ -19,7 +19,7 @@ app = FastAPI(title="DataGlass API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000, https://data-glass.vercel.app"],
+    allow_origins=["http://localhost:3000", "https://data-glass.vercel.app"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -405,41 +405,41 @@ async def get_ai_chart_recommendations(request: AIChartRequest) -> ChartResponse
         
         # Prepare the system prompt
         system_prompt = """
-        You are a data visualization expert. Based on the user's request and CSV column headers, recommend the most appropriate chart types.
+You are a data visualization expert. Based on the user's request and CSV column headers, recommend the most appropriate chart types.
 
-        Return your response as a JSON array of chart recommendations. Each recommendation should have this exact structure:
-        {
-            "type": "bar|line|pie|scatter|area|bubble",
-            "title": "Chart title",
-            "xAxis": "column_name_for_x_axis (only use CSV column headers)",
-            "yAxis": "column_name_for_y_axis (only use CSV column headers)", 
-            "dataKey": "column_name (only use CSV column headers) (only for pie charts)",
-            "description": "Brief explanation of what this chart shows"
-        }
+Return your response as a JSON array of chart recommendations. Each recommendation should have this exact structure:
+{
+    "type": "bar|line|pie|scatter|area|bubble",
+    "title": "Chart title",
+    "xAxis": "column_name_for_x_axis",
+    "yAxis": "column_name_for_y_axis", 
+    (only use CSV column headers) "dataKey": "column_name" (only for pie charts), (only use CSV column headers)
+    "description": "Brief explanation  (only use CSV column headers)  what this chart show"s"
+}
 
-        Guidelines:
-        - For pie charts, use "dataKey" instead of xAxis/yAxis
-        - For bar/line/area/scatter charts, always specify both xAxis and yAxis
-        - Choose columns that exist in the provided headers
-        - Recommend 1-3 different chart types maximum
-        - Consider the user's specific request and data context
-        - Make titles descriptive and professional
-        """
+Guidelines:
+- For pie charts, use "dataKey" instead of xAxis/yAxis
+- For bar/line/area/scatter charts, always specify both xAxis and yAxis
+- Choose columns that exist in the provided headers
+- Recommend 3-6 different chart types maximum
+- Consider the user's specific request and data context
+- Make titles descriptive an1-3rofessional
+"""
         
         # Prepare the user prompt with context
         headers_text = ", ".join(request.headers)
         
         user_prompt = f"""
-        User Request: {request.prompt}
+User Request: {request.prompt}
 
-        Available CSV columns: {headers_text}
+Available CSV columns: {headers_text}
 
-        Please recommend appropriate chart visualizations based on this request and the available data columns.
-        """
+Please recommend appropriate chart visualizations based on this request and the available data columns.
+"""
         
         # Call OpenAI API
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
